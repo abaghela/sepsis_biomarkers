@@ -1,0 +1,16 @@
+# Potentially human sensitive expression data
+create_tr_te/tr_te_dat.RDS
+deconvolution/deconv_res.rds
+CIBERSORT-Results.txt
+
+# Figures which take up space
+modules/figures/*
+de/figures/*
+
+# Results which take up space
+modules/results/*
+de/results/*
+
+# Rantom R Stuff
+.Rhistory
+.Rproj.user/*
