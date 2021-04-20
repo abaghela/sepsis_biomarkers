@@ -6,6 +6,8 @@ library(DESeq2)
 library(pheatmap)
 library(RColorBrewer)
 library(viridis)
+library(ggrepel)
+library(UpSetR)
 library(enrichR)
 library(ReactomePA)
 
@@ -103,7 +105,7 @@ de_dds <- function(dds, main_covar, comparisons, PADJ, FC , filt) {
     res <- results(dds, contrast = c(main_covar, comparisons[[i]][2], comparisons[[i]][1]))
     res %<>% as.data.frame() %>% 
       rownames_to_column(var= "ensembl_gene_id") %>% 
-      left_join(universe) %>% 
+      left_join(universe, by = "ensembl_gene_id") %>% 
       mutate(Abs_LFC = abs(log2FoldChange)) %>% 
       mutate(fc= sign(log2FoldChange)* 2^(Abs_LFC)) %>% 
       mutate(padj = ifelse(is.na(padj), 1, padj )) %>% 

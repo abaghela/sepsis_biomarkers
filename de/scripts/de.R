@@ -1,149 +1,71 @@
-# Get DE Genes correcting for cell proportions, age, gender, batch
-
 rm(list = ls())
-
-library(tidyverse)
-library(magrittr)
-library(functionjunction)
-library(DESeq2)
-library(viridis)
-library(ggrepel)
-library(UpSetR)
 source("./helper_functions.R")
 
-### Read in data
-data <- read_rds("../../sepsis_rnaseq_all/final/counts_meta_10_read_filt_261120.RDS")
-universe <- read_rds("../../sepsis_rnaseq_all/final/counts_meta_10_read_filt_261120.RDS")$universe
-tr_te_dat <- read_rds("../paper_er_icu_sepsis/data_overview/tr_te_dat.RDS")
-icu_dat <- read_rds("../paper_er_icu_sepsis/data_overview/icu_fir_sec_dat.RDS")
+### Read in data - remove healthy controls
+tr_te_dat <- read_rds("./create_tr_te/tr_te_dat.RDS")
 
-sev_model <- data.frame(
-  model = c("severity", "severity", "severity", "severity"),
-  group = rev(c("high", "intermediate", "low", "healthy_control")),
-  color = rev(c("red", "darkorange1" ,"burlywood4", "black")),
-  proper_name = rev(c("High", "Int", "Low", "HC"))
-)
-
-### Set up data
-expr <- tr_te_dat$train$expr$raw %>% 
-  left_join(icu_dat$first$expr$raw)
-
-keep <- c("sample_identifier", "condition", "sequencing_month_year",  "outcome_icu_survival",  "outcome_mortality",
-          "first_at_ed_sofa","worst_within_72_sofa", "outcome_sofa_second", "outcome_sofa_first", "outcome_sofa_third",
-          "age", "gender", "micro_blood_culture_pathogen")
-meta <- icu_dat$first$meta %>% 
-  dplyr::select(one_of(keep)) %>% 
-  dplyr::rename(sofa = "outcome_sofa_second", survive = "outcome_icu_survival") %>% 
-  mutate(sofa_progress = ifelse(outcome_sofa_third - outcome_sofa_first > 0, "worse",
-                                ifelse(outcome_sofa_third == outcome_sofa_first, "same", "improve"))) %>% 
-  mutate(survive = ifelse(survive == 1, "survived", "dead"))
-meta <- tr_te_dat$train$meta %>% 
-  dplyr::select(one_of(keep)) %>% 
-  dplyr::rename(sofa = "first_at_ed_sofa", survive = "outcome_mortality") %>% 
-  mutate(sofa_progress = ifelse(worst_within_72_sofa - sofa > 0, "worse", 
-                                ifelse(worst_within_72_sofa == sofa, "same", "improve"))) %>% 
-  mutate(survive = ifelse(survive == 0, "survived", "dead")) %>% 
-  bind_rows(meta) 
-
-meta %<>% mutate(gender = ifelse(gender == 0, "M", "F")) 
-
-### Remove controls
-meta_no_hc <- meta %>% filter(!condition == "healthy_control")
-expr_no_hc <- expr %>% dplyr::select(one_of("ensembl_gene_id", meta_no_hc$sample_identifier))
-all(meta_no_hc$sample_identifier == colnames(expr_no_hc)[-1])
-
-### Get severity groups
-meta_no_hc %<>% 
-  mutate(sofa_24_only_sev_group = 
-           ifelse(condition == "healthy_control", "healthy_control", 
-                  ifelse( sofa >= 5, "high", 
-                          ifelse(sofa >= 2, "intermediate","low")))) %>% 
-  mutate(sofa_24_only_sev_group = ifelse(is.na(sofa_24_only_sev_group), NA, .$sofa_24_only_sev_group)) %>% 
-  mutate(sofa_24_only_sev_group = factor(sofa_24_only_sev_group, levels = c("low", "intermediate", "high")))
-
-### Now make outcomes to model for DE. HighInt vs Low, High vs IntLow, Died vs Survive.
-meta_no_hc %<>% 
-  mutate(HighInt_Low = ifelse(is.na(sofa_24_only_sev_group) , NA, 
-                              ifelse(sofa_24_only_sev_group %in% c("high", "intermediate"), "HighInt", "Low"))) %>% 
-  mutate(HighInt_Low = factor(HighInt_Low, levels = c("Low", "HighInt"))) %>% 
-  mutate(High_IntLow = ifelse(is.na(sofa_24_only_sev_group) , NA, 
-                              ifelse(sofa_24_only_sev_group %in% c("high"), "High", "IntLow"))) %>% 
-  mutate(High_IntLow = factor(High_IntLow, levels = c("IntLow", "High"))) %>%
-  mutate(High_Low_BC = ifelse(is.na(sofa_24_only_sev_group), NA,
-                              ifelse(sofa_24_only_sev_group == "high" & micro_blood_culture_pathogen == 1, "High_BC",
-                                     ifelse(sofa_24_only_sev_group == "low" & micro_blood_culture_pathogen == 0, "Low_BC",
-                                            ifelse(sofa_24_only_sev_group == "intermediate", NA, NA))))) %>% 
-  mutate(High_Low_BC = factor(High_Low_BC, levels = c("Low_BC", "High_BC"))) %>% 
-  mutate(survive = factor(survive, levels = c("survived", "dead"))) %>% 
-  mutate(sofa_progress = factor(sofa_progress, levels = c("improve", "same", "worse")))
-
-all(colnames(expr_no_hc)[-1] == meta_no_hc$sample_identifier)
+expr <- tr_te_dat$er_tr$expr %>% dplyr::select(!contains("hc"))
+meta <- tr_te_dat$er_tr$meta %>% filter(condition != "healthy_control")
+all(colnames(expr)[-1] == meta$sample_identifier)
 
 ### PCA
-pca_meta <- meta_no_hc %>% filter(!is.na(sofa_24_only_sev_group))
-pca_expr <- expr_no_hc %>% dplyr::select(one_of("ensembl_gene_id", pca_meta$sample_identifier))
-pca <- pca_expr %>% 
+pca <- expr %>% 
   column_to_rownames(var = "ensembl_gene_id") %>% 
   as.matrix() %>% 
   DESeq2::varianceStabilizingTransformation()  %>% 
-  sva::ComBat(batch = pca_meta$sequencing_month_year, mod  = model.matrix(~as.character(sofa_24_only_sev_group), data=pca_meta)) %>%
+  sva::ComBat(batch = meta$sequencing_month_year) %>%
   t() %>% 
   perform_pca()
 
 pca$x %>%
-  left_join(meta_no_hc) %>% 
-  ggplot(aes(x = PC1, y = PC2, color = sofa_24_only_sev_group, fill = sofa_24_only_sev_group)) +
+  left_join(meta) %>% 
+  ggplot(aes(x = PC1, y = PC2,  fill = HighInt_Low_BC)) +
   geom_point(size = 4, colour="black", pch=21 ) + 
   xlab(paste0("PC1 (", pca$pov[1]*100, "%)" )) + 
   ylab(paste0("PC2 (", pca$pov[2]*100, "%)" )) + 
-  scale_fill_manual("", labels = as.character(sev_model$proper_name)[-1], values = as.character(sev_model$color)[-1] ) +
-  scale_color_manual("", labels = as.character(sev_model$proper_name)[-1], values = as.character(sev_model$color)[-1]) +
   theme_minimal() +
   theme(legend.text = element_text(size = 13), legend.title = element_text(size = 13),
         axis.text.x = element_text(color = "black", size = 13), axis.text.y = element_text(color = "black", size = 13))
 
 ### Add in cell proportion information
-deconv_res <- read_rds("../paper_er_icu_sepsis/deconvolution/deconv_res.rds")
-deconv_res_icu <- read_rds("../paper_er_icu_sepsis/deconvolution/icu_deconv_res.rds")
+deconv_res <- read_rds("./deconvolution/deconv_res.rds")
 
-deconv_res_tr_icu_df <- deconv_res$train$cibersort %>% 
-  left_join(deconv_res_icu$first$cibersort) %>% 
-  dplyr::select(one_of("cell_type", meta_no_hc$sample_identifier)) %>% 
+deconv_res_tr_df <- deconv_res$er_tr$cibersort %>% 
+  dplyr::select(one_of("cell_type", meta$sample_identifier)) %>% 
   mutate(cell_type = janitor::make_clean_names(cell_type)) %>% 
+  remove_zero_var_cols() %>% 
   column_to_rownames(var = "cell_type") %>% 
   t()
-deconv_res_pca <- deconv_res_tr_icu_df %>% perform_pca()
-deconv_res_pca$pov %>% explain_95()
-deconv_res_pca_x <- deconv_res_pca$x %>% dplyr::select(one_of("sample_identifier", paste0("PC", 1:15)))
+deconv_res_pca <- deconv_res_tr_df %>% perform_pca()
+deconv_res_pca_x <- deconv_res_pca$x %>% dplyr::select(one_of("sample_identifier", paste0("PC", 1:explain_95(deconv_res_pca$pov))))
 
-# Add into cell proportions to meta
-meta_no_hc %<>% left_join(deconv_res_pca_x)
+meta %<>% left_join(deconv_res_pca_x)
 
 ### DE
-cols_to_keep <- c("sequencing_month_year", "age", "gender", paste0("PC", 1:15))
-#outcomes <- c("sofa_progress","survive", "sofa_24_only_sev_group", "HighInt_Low", "High_IntLow")
-outcomes <- c("High_Low_BC","sofa_24_only_sev_group", "HighInt_Low", "High_IntLow")
+cols_to_keep <- c("sequencing_month_year", "age", "gender", "PC1")
+outcomes <- c("survive","icu_adm","culture","sofa_sev_24","sofa_sev_prog", "HighInt_Low_BC", "HighInt_Low", "High_IntLow")
 
-
+# Get an idea of patient numbers
 for (i in outcomes){
-  numbers <- meta_no_hc %>% group_by_at(i) %>% summarize(n=n(), .groups = 'drop') 
-  print(numbers)
-  rm(numbers)
+  meta %>% group_by_at(i) %>% summarize(n=n(), .groups = 'drop') %>% print()
 }
 
-res_de <- list() ; res_pthwy <- list()
-for (i in outcomes) {
-  cat(paste0("Outcome: ", i, "\n"))
+perform_de_pthwy_enr <- function(expr, meta, outcome) {
   
-  met <- meta_no_hc %>% 
-    dplyr::select(one_of("sample_identifier", i, cols_to_keep)) %>% 
-    dplyr::rename(comparison = i) %>% 
+  # Print the outcome
+  cat(paste0("Outcome: ", outcome, "\n"))
+  
+  # Set up meta and expression data
+  met <- meta %>% 
+    dplyr::select(one_of("sample_identifier", outcome, cols_to_keep)) %>% 
+    dplyr::rename(comparison = outcome) %>% 
     filter(!is.na(comparison))
   
-  exp <- expr_no_hc %>% 
+  exp <- expr %>% 
     dplyr::select(one_of("ensembl_gene_id", met$sample_identifier)) %>% 
     column_to_rownames(var = "ensembl_gene_id")
   
+  # Check if samples are in the right order
   right_order <-  all(colnames(exp) == met$sample_identifier)
   
   if (!right_order) {
@@ -151,10 +73,12 @@ for (i in outcomes) {
     stop()
   }
   
-  de_res <- de(counts = exp, meta = met, FC = 1, 
+  # Perform differential expression
+  de_res <- de(counts = exp, meta = met, FC = 1.5, 
                des = paste0("comparison + ", paste(cols_to_keep, collapse = " + ")), 
                main_covar = "comparison", filt = FALSE)
   
+  # Perform pathway enrichment
   pthwy <- de_res %>% 
     map(~filter(.x, de == "de")) %>% 
     map(~pathway_enrichment(.x$entrezgene_id, p_val = 0.01, universe_list = universe$entrezgene_id))
@@ -168,27 +92,33 @@ for (i in outcomes) {
     map(~pathway_enrichment(.x$entrezgene_id, p_val = 0.01, universe_list = universe$entrezgene_id))
   
   # Save Results
-  res_de[[i]] <- de_res
-  res_pthwy[[i]] <- list(
+  res <- list()
+  res[["de"]] <- de_res
+  res[["pthwy"]] <- list(
     all = pthwy,
     up = pthwy_up,
     down = pthwy_down)
-}
+  return(res)
+  }
+
+res <- outcomes %>% 
+  map(~perform_de_pthwy_enr(expr, meta, outcome = .x)) %>% 
+  set_names(outcomes)
 
 # Save results
-res_de %>% write_rds(paste0("./results/severity_combine_de_tr_icu_res.rds"))
-res_pthwy %>% write_rds(paste0("./results/severity_combine_pthwy_enr_tr_icu_res.rds"))
+res %>% write_rds(paste0("./de/results/de_tr_res.rds"))
 
 # Get numbers
-res_de %>% 
+res %>% 
+  map(~.x$de) %>% 
   map(~map(.x, ~filter(.x, de == "de"))) %>% 
   map(~map(.x, ~nrow(.x)))
-res_de %>% 
+res %>% 
+  map(~.x$de) %>% 
   map(~map(.x, ~filter(.x, de == "de" & direction == "up"))) %>% 
   map(~map(.x, ~nrow(.x)))
 
-
-# Save results
+# Read in results
 res_de <- read_rds(paste0("./results/severity_combine_de_tr_icu_res.rds"))
 res_pthwy <-  read_rds(paste0("./results/severity_combine_pthwy_enr_tr_icu_res.rds"))
 

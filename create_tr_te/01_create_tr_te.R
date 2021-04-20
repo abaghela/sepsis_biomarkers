@@ -1,3 +1,4 @@
+rm(list = ls())
 source("./helper_functions.R")
 
 ### Read in data 
