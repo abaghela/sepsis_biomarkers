@@ -81,15 +81,15 @@ perform_de_pthwy_enr <- function(expr, meta, outcome) {
   # Perform pathway enrichment
   pthwy <- de_res %>% 
     map(~filter(.x, de == "de")) %>% 
-    map(~pathway_enrichment(.x$entrezgene_id, p_val = 0.01, universe_list = universe$entrezgene_id))
+    map(~pathway_enrichment(.x$entrezgene_id, p_val = 0.05, universe_list = universe$entrezgene_id))
   
   pthwy_up <- de_res %>% 
     map(~filter(.x, direction == "up")) %>% 
-    map(~pathway_enrichment(.x$entrezgene_id, p_val = 0.01, universe_list = universe$entrezgene_id))
+    map(~pathway_enrichment(.x$entrezgene_id, p_val = 0.05, universe_list = universe$entrezgene_id))
   
   pthwy_down <- de_res %>% 
     map(~filter(.x, direction == "down")) %>% 
-    map(~pathway_enrichment(.x$entrezgene_id, p_val = 0.01, universe_list = universe$entrezgene_id))
+    map(~pathway_enrichment(.x$entrezgene_id, p_val = 0.05, universe_list = universe$entrezgene_id))
   
   # Save Results
   res <- list()
@@ -105,25 +105,18 @@ res <- outcomes %>%
   map(~perform_de_pthwy_enr(expr, meta, outcome = .x)) %>% 
   set_names(outcomes)
 
-# Save results
-res %>% write_rds(paste0("./de/results/de_tr_res.rds"))
+### Save results
+res %>% 
+  write_rds(paste0("./de/results/de_tr_res.rds"))
 
-# Get numbers
+# Get DE Gene Numbers
 res %>% 
   map(~.x$de) %>% 
-  map(~map(.x, ~filter(.x, de == "de"))) %>% 
-  map(~map(.x, ~nrow(.x)))
-res %>% 
-  map(~.x$de) %>% 
-  map(~map(.x, ~filter(.x, de == "de" & direction == "up"))) %>% 
-  map(~map(.x, ~nrow(.x)))
-
-# Read in results
-res_de <- read_rds(paste0("./results/severity_combine_de_tr_icu_res.rds"))
-res_pthwy <-  read_rds(paste0("./results/severity_combine_pthwy_enr_tr_icu_res.rds"))
+  map(~map(.x, ~de_gene_numbers(.x)))
 
 ### Pathway Enrichment plots
-res_pthwy_df <- res_pthwy %>% 
+res_pthwy_df <- res %>% 
+  map(~.x$pthwy) %>% 
   map(~map(.x, ~bind_rows(.x, .id = "comparison"))) %>% 
   map(~bind_rows(.x, .id = "direction")) %>% 
   bind_rows(.id = "outcome")

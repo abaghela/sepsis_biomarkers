@@ -1,3 +1,3 @@
 # Sepsis Biomarkers
 
-This script contains an on-going analysis to identify gene expression biomarkers to diagnose or prognosticate suspected sepsis patients in the ER. There are two primary analysis challenges here, and it is common to most high-throughput studies in complex diseases like sepsis; the first is appropriately reducing the dimensionality of the RNA-seq data, and the second is selecting the best clinical proxy/surrogate to label true positive/negative cases of sepsis. 
+This repository contains an on-going analysis to identify gene expression biomarkers to diagnose or prognosticate suspected sepsis patients in the ER. There are two primary analysis challenges here, and it is common to most high-throughput studies in complex diseases like sepsis; the first is appropriately reducing the dimensionality of the RNA-seq data, and the second is selecting the best clinical proxy/surrogate to label true positive/negative cases of sepsis. 

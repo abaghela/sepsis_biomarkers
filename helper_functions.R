@@ -139,6 +139,15 @@ de <- function(counts, meta,  PADJ= 0.05, FC= 1.5, des, main_covar, versus_hc = 
   return(FinalResults)
 }
 
+de_gene_numbers <- function(de_res, comparison_name = NULL){
+  return(data.frame(
+    all = de_res %>% filter(de == "de") %>% nrow(),
+    up = de_res %>% filter(de == "de" & direction == "up") %>% nrow(),
+    down = de_res %>% filter(de == "de" & direction == "down") %>% nrow(),
+    row.names = comparison_name)
+  )
+  }
+
 plot_reactome_pathway <- function(df){
   pathway_hier <- read_csv("/mnt/analysis1/ImportantFiles/Human/enr_pathway_highest_level_clean_names.csv")
   keep_class <- c("Adaptive", "Innate", "Cytokine Signaling", 
