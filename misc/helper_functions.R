@@ -90,20 +90,24 @@ perform_pca <- function(expr){
   return(res)
 }
 
-explain_95 <- function(ev){
+explain_95 <- function(ev, perc){
   for (ind in 1:length(ev)){
     var_expl <- sum(ev[1:ind])
-    if(var_expl > 0.90){
-      return(ind-1)
+    if(var_expl > perc/100){
+      return(ind)
     }
   }
 }
 
-de_dds <- function(dds, main_covar, comparisons, PADJ, FC , filt) {
-  FinalResults <- list()
-  for (i in 1:length(comparisons)) {
-    res <- results(dds, contrast = c(main_covar, comparisons[[i]][2], comparisons[[i]][1]))
-    res %<>% as.data.frame() %>% 
+de <- function(counts, meta,  PADJ= 0.05, FC= 1.5, des, main_covar, versus_hc = FALSE, hc_name = "healthy_control", filt = TRUE) {
+  
+  # Load required package 
+  #require("DESeq2")
+  
+  # Function to clean up DE results
+  clean_de_res <- function(res){
+    res_clean <- res %>% 
+      as.data.frame() %>% 
       rownames_to_column(var= "ensembl_gene_id") %>% 
       left_join(universe, by = "ensembl_gene_id") %>% 
       mutate(Abs_LFC = abs(log2FoldChange)) %>% 
@@ -113,31 +117,66 @@ de_dds <- function(dds, main_covar, comparisons, PADJ, FC , filt) {
       mutate(direction = ifelse( fc >= 0 & de == "de", "up" ,ifelse(fc <= 0 & de == "de", "down", "non_de")))
     
     if(filt == TRUE) {
-      res <- res %>%  dplyr::filter(de == "de")
+      res_clean_filt <- res_clean %>%  dplyr::filter(de == "de")
+      return(res_clean_filt)
+    }
+    return(res_clean)
+  }
+  
+  # Set up function for categorical main covariate
+  de_factor <- function() {
+    
+    comparisons <- combn(levels(colData(dds)[[main_covar]]), 2, simplify = FALSE)
+    
+    if (isTRUE(versus_hc)) {
+      comparisons %<>% keep(~any(c(hc_name) %in% .x))
     }
     
-    name <- paste0(comparisons[[i]][2],"_", comparisons[[i]][1])
-    FinalResults[[name]] <- res
+    FinalResults <- list()
+    for (i in 1:length(comparisons)) {
+      res <- DESeq2::results(dds, contrast = c(main_covar, comparisons[[i]][2], comparisons[[i]][1]))
+      res %<>% clean_de_res()
+      
+      name <- paste0(comparisons[[i]][2],"_vs_", comparisons[[i]][1])
+      FinalResults[[name]] <- res
+    }
+    return(FinalResults)
+    
   }
-  return(FinalResults)
   
-}
-
-de <- function(counts, meta,  PADJ= 0.05, FC= 1.5, des, main_covar, versus_hc = FALSE, hc_name = "healthy_control", filt = TRUE) {
+  # Set up function for numerical main covariate
+  de_numeric <- function() {
+    FinalResults <- list()
+    res <- DESeq2::results(dds, contrast = list(main_covar))
+    res %<>% clean_de_res()
+    FinalResults[[main_covar]] <- res
+    return(FinalResults)
+  }
   
+  # Set up dds
+  cat("Creating dds object...\n")
   dds <- DESeq2::DESeqDataSetFromMatrix(countData = counts, colData = meta, design = as.formula(paste0("~", des)))
   
-  dds <- DESeq2::DESeq(dds, parallel = TRUE)
-  comparisons <- combn(levels(colData(dds)[[main_covar]]), 2, simplify = FALSE)
+  # What is the class of the main covariate? 
+  main_covar_class <- class(SummarizedExperiment::colData(dds)[[main_covar]])
   
-  if (isTRUE(versus_hc)) {
-    comparisons %<>% keep(~any(c(hc_name) %in% .x))
+  # Perform DE based on main covariate class 
+  if (main_covar_class == "numeric") {
+    cat("\n The main covariate is a numeric. \n")
+    # Perform LMs 
+    dds <- DESeq2::DESeq(dds, parallel = TRUE)
+    return(de_numeric())
+  } else if (main_covar_class == "factor") {
+    # Perform LMs 
+    dds <- DESeq2::DESeq(dds, parallel = TRUE)
+    cat("\n Main covariate is a factor. \n")
+    return(de_factor())
+  } else {
+    cat("\n Please make variable a factor or numeric! \n")
+    return(NULL)
   }
-  #  comparisons %<>% keep(~!any(c("healthy_control") %in% .x))
-  
-  FinalResults <- de_dds(dds, main_covar ,comparisons, PADJ= PADJ, FC= FC,  filt = filt)
-  return(FinalResults)
 }
+
 
 de_gene_numbers <- function(de_res, comparison_name = NULL){
   return(data.frame(
@@ -150,32 +189,60 @@ de_gene_numbers <- function(de_res, comparison_name = NULL){
 
 plot_reactome_pathway <- function(df){
   pathway_hier <- read_csv("/mnt/analysis1/ImportantFiles/Human/enr_pathway_highest_level_clean_names.csv")
-  keep_class <- c("Adaptive", "Innate", "Cytokine Signaling", 
-                  "Signaling by GPCR" , "Platelet activation, signaling and aggregation") 
+  keep_class <- c("Adaptive", "Innate", "Cytokine Signaling", "Signaling by GPCR" , 
+                  "Platelet activation, signaling and aggregation") 
+  remove_class <- c("Cell Cycle, Mitotic", NA, "Cell Cycle Checkpoints", "O2/CO2 exchange in erythrocytes")
   
   df <- df %>% 
     separate(BgRatio,into = c("M", "N")) %>%
     mutate(Ratio = Count/as.numeric(M) ) %>% 
     left_join(pathway_hier, by = c("ID" = "enr_pathway")) %>% 
     dplyr::select(one_of("comparison","direction", "p.adjust", 
-                         "enr_pathway_descrip_clean_name","Ratio", "one_lower_level_pathway_descrip_clean_name", "geneID")) %>% 
+                         "enr_pathway_descrip_clean_name","Ratio", "one_lower_level_pathway_descrip_clean_name",
+                         "geneID")) %>% 
     filter(direction %in% c("down", "up")) %>% 
     mutate(direction = factor(direction, levels = c("up", "down"), labels = c("Up", "Down"))) %>% 
-    filter(one_lower_level_pathway_descrip_clean_name %in% keep_class)
-    
-
+    #filter(one_lower_level_pathway_descrip_clean_name %in% keep_class) %>% 
+    filter(!one_lower_level_pathway_descrip_clean_name %in% remove_class) %>% 
+    mutate(one_lower_level_pathway_descrip_clean_name = str_wrap(one_lower_level_pathway_descrip_clean_name, width = 20)) %>% 
+    mutate(enr_pathway_descrip_clean_name = str_wrap(enr_pathway_descrip_clean_name, width = 40))
   
   res <- ggplot(df, aes(y = enr_pathway_descrip_clean_name, x = direction, fill = Ratio, size = -log10(p.adjust))) +
-    facet_grid(rows = vars(one_lower_level_pathway_descrip_clean_name), cols = vars(comparison), scales = "free_y", space = "free_y" ) +
+    facet_grid(rows = vars(one_lower_level_pathway_descrip_clean_name), 
+               cols = vars(comparison), scales = "free_y", space = "free_y" ) +
     geom_point(color = "black", pch = 22) +
     theme_light() +
     theme(axis.text.x = element_text(size = 12, color = "black"),
           axis.text.y = element_text(color = "black", size = 12),
           legend.position = "right",
-          strip.text.y = element_text(angle = 270, color = "black" ),
+          strip.text.y = element_text(angle =0, color = "black" ),
           strip.text = element_text(color = "black", size = 12)
     ) +
-    scale_fill_viridis(option = "magma", direction = -1) +
+    scale_fill_viridis(direction = -1) +
+    scale_size(name = "Adj p val \n (-log10)") +
+    ylab("") + xlab("")
+  return(res)
+}
+
+plot_msigdb_pathways <- function(df){
+  df <- df %>% 
+    separate(Overlap,into = c("M", "N")) %>%
+    mutate(Ratio = as.numeric(M)/as.numeric(N) ) %>% 
+    filter(direction %in% c("down", "up")) %>% 
+    mutate(direction = factor(direction, levels = c("up", "down"), labels = c("Up", "Down")))
+  
+  res <- ggplot(df, aes(x = direction, y = Term, fill = Ratio, size = -log10(Adjusted.P.value))) + 
+    geom_point() + 
+    facet_grid(cols = vars(comparison), scales = "free_y", space = "free_y") +
+    geom_point(color = "black", pch = 22) +
+    theme_light() +
+    theme(axis.text.x = element_text(size = 12, color = "black"),
+          axis.text.y = element_text(color = "black", size = 12),
+          legend.position = "right",
+          strip.text.y = element_text(angle = 0, color = "black" ),
+          strip.text = element_text(color = "black", size = 12)
+    ) +
+    scale_fill_viridis(direction = -1) +
     scale_size(name = "Adj p val \n (-log10)") +
     ylab("") + xlab("")
   return(res)
@@ -220,7 +287,7 @@ extract_coefs <- function(mod) {
       dplyr::rename(coef = "1") %>% 
       filter(!ensembl_gene_id == "(Intercept)") %>% 
       filter(coef != 0) %>% 
-      left_join(universe)
+      left_join(universe, by = "ensembl_gene_id")
     return(coefs)
   } else{
     coefs <-  coef(mod$finalModel, mod$bestTune$lambda) %>% 
@@ -228,7 +295,7 @@ extract_coefs <- function(mod) {
       dplyr::rename(coef = "1") %>%
       filter(!ensembl_gene_id == "(Intercept)") %>%
       filter(coef != 0) %>%
-      left_join(universe)
+      left_join(universe, by = "ensembl_gene_id")
   }
   return(coefs)    
 }

@@ -1,5 +1,5 @@
 rm(list = ls())
-source("./helper_functions.R")
+source("./misc/helper_functions.R")
 
 ### Read in data 
 tr_te_dat <- read_rds("./create_tr_te/tr_te_dat.RDS")
@@ -21,6 +21,13 @@ tr_te_dat$er_te$meta <- tr_te_dat$er_te$meta %>%
   dplyr::rename(sofa_24 = "first_at_ed_sofa", sofa_72 = "worst_within_72_sofa", 
                 survive = "outcome_mortality", icu_adm = "outcome_icu_admission",
                 culture = "micro_blood_culture_pathogen")
+
+# HC 
+tr_te_dat$hc$meta <- tr_te_dat$hc$meta %>% 
+  dplyr::rename(sofa_24 = "first_at_ed_sofa", sofa_72 = "worst_within_72_sofa", 
+                survive = "outcome_mortality", icu_adm = "outcome_icu_admission",
+                culture = "micro_blood_culture_pathogen")
+
 # ICU
 tr_te_dat$icu$meta <- tr_te_dat$icu$meta %>% 
   dplyr::rename(sofa_24 = "outcome_sofa_second", sofa_72 = "outcome_sofa_third", 
@@ -39,7 +46,7 @@ create_outcomes <- function(meta) {
   meta %<>% 
     # Survival
     mutate(survive = ifelse(survive == 1, "dead", "survive")) %>% 
-    mutate(surive = factor(survive, levels = c("survive", "dead"))) %>% 
+    mutate(survive = factor(survive, levels = c("survive", "dead"))) %>% 
     # ICU admission
     mutate(icu_adm = ifelse(icu_adm == 1, "icu", "non_icu")) %>% 
     mutate(icu_adm = factor(icu_adm, levels = c("non_icu", "icu"))) %>% 
@@ -49,7 +56,7 @@ create_outcomes <- function(meta) {
   
   
   # Severity: SOFA scores
-  meta %<>% 
+  meta %<>%
     # Severity @ 24H
     mutate(sofa_sev_24 = 
              ifelse(is.na(sofa_24), NA, 
@@ -58,9 +65,32 @@ create_outcomes <- function(meta) {
     # Severity Progression from 24H to 72H
     mutate(sofa_sev_prog = 
              ifelse(is.na(sofa_72), NA,
-                    ifelse(sofa_72 - sofa_24 > 0, "worse", 
-                                  ifelse(sofa_72 == sofa_24, "same", "improve")))) %>% 
-    mutate(sofa_sev_prog = factor(sofa_sev_prog, levels = c("improve", "same", "worse")))
+                    ifelse(sofa_72 - sofa_24 >= 0, "worse_same", "improve" ))) %>% 
+    mutate(sofa_sev_prog = factor(sofa_sev_prog, levels = c("improve", "worse_same")))
+  
+  
+  # Severity: qSOFA ; edge case because ICU patients do not have this variable
+  if ("at_ed_qsofa" %in% colnames(meta)){
+  meta %<>% 
+      # qSOFA
+      mutate(qsofa_sev_adm = ifelse(is.na(at_ed_qsofa), NA, 
+                                    ifelse(at_ed_qsofa >= 2, "high", 
+                                           ifelse(at_ed_qsofa == 1, "int", "low")))) %>% 
+      mutate(qsofa_sev_adm = factor(qsofa_sev_adm, levels = c("low", "int","high"))) %>% 
+      
+      # qSOFA High vs Low
+      mutate(qsofa_High_Low = ifelse(is.na(qsofa_sev_adm), NA, 
+                                     ifelse(qsofa_sev_adm %in% c("high"), "high",
+                                            ifelse(qsofa_sev_adm %in% c("low"), "low", NA)))) %>% 
+      mutate(qsofa_High_Low = factor(qsofa_High_Low, levels = c("low", "high")))
+      
+      # # qSOFA + BC
+      # mutate(qsofa_sev_adm_BC = ifelse(is.na(qsofa_sev_adm), NA,
+      #                                  ifelse(qsofa_sev_adm %in% c("high") & culture == "pos", "high_pos", 
+      #                                         ifelse(qsofa_sev_adm == "low" & culture == "neg", "low_neg", NA)) )) %>% 
+      # mutate(qsofa_sev_adm_BC = factor(qsofa_sev_adm_BC, levels = c("low_neg", "high_pos") ))
+  }
+  
   
   # Composite scores
   meta %<>% 
@@ -81,7 +111,12 @@ create_outcomes <- function(meta) {
     mutate(HighInt_Low_BC = ifelse(is.na(sofa_sev_24), NA,
                                 ifelse(sofa_sev_24 %in% c("high", "int") & culture == "pos", "high_int_pos",
                                        ifelse(sofa_sev_24 == "low" & culture == "neg", "low_neg", NA)))) %>% 
-    mutate(HighInt_Low_BC = factor(HighInt_Low_BC, levels = c("low_neg", "high_int_pos")))
+    mutate(HighInt_Low_BC = factor(HighInt_Low_BC, levels = c("low_neg", "high_int_pos"))) %>% 
+    # High (Culture Pos) vs Low (Culture Neg)
+    mutate(High_Low_BC = ifelse(is.na(sofa_sev_24), NA,
+                                   ifelse(sofa_sev_24 %in% c("high") & culture == "pos", "high_pos",
+                                          ifelse(sofa_sev_24 == "low" & culture == "neg", "low_neg", NA)))) %>% 
+    mutate(High_Low_BC = factor(High_Low_BC, levels = c("low_neg", "high_pos")))
   
   
   return(meta)
@@ -90,6 +125,7 @@ create_outcomes <- function(meta) {
 
 tr_te_dat$er_tr$meta <- create_outcomes(tr_te_dat$er_tr$meta)
 tr_te_dat$er_te$meta <- create_outcomes(tr_te_dat$er_te$meta)
+tr_te_dat$hc$meta <- create_outcomes(tr_te_dat$hc$meta)
 tr_te_dat$icu$meta <- create_outcomes(tr_te_dat$icu$meta)
   
 tr_te_dat %>% write_rds("./create_tr_te/tr_te_dat.RDS")

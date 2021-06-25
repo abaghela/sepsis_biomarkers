@@ -37,7 +37,17 @@ for (i in names(tr_te_dat)) {
     cibersort = deconvolute(expr_mat, "cibersort")
     #cibersort_abs = deconvolute(expr_mat, "cibersort_abs")
   )
+  
+  # Make nice 
+  res %<>% 
+    map(~mutate(.x, cell_type = janitor::make_clean_names(cell_type) )) %>% 
+    map(~remove_zero_var_cols(.x)) %>% 
+    map(~column_to_rownames(.x, var = "cell_type")) %>% 
+    map(~t(.x))
+
   deconv_res[[i]] <- res
 }
 
-deconv_res %>% write_rds("./deconvolution/deconv_res.rds")
+deconv_res %>% write_rds("./create_tr_te/deconv_res.rds")
+
+system("mv ./CIBERSORT-Results.txt ./create_tr_te/")
