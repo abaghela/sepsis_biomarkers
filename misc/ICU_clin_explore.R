@@ -18,9 +18,13 @@ alluv_plt <- meta %>%
   ungroup() %>% 
   na.omit()
 
+<<<<<<< HEAD
 png("./misc/figures/ICU_Sev_Outcome_Alluvial.png", width = 400, height = 300, units = "px")
 print(alluvial::alluvial(alluv_plt[,c(1,2)], freq = alluv_plt$Freq))
 dev.off()
+=======
+alluvial::alluvial(alluv_plt[,c(1,2)], freq = alluv_plt$Freq)
+>>>>>>> 36a7168835f86e6a246bd8b4e62b095b5923a0ff
 
 ### Severity - Outcomes Association 
 broom::tidy(lm(sofa_24 ~ survive, data = meta))
@@ -29,4 +33,7 @@ meta %>%
   na.omit() %>% 
   ggplot(aes(x = survive, y = sofa_24)) + 
   geom_boxplot()
+<<<<<<< HEAD
 ggsave("./misc/figures/ICU_SOFA_outcomes.png", scale = 0.9)
+=======
+>>>>>>> 36a7168835f86e6a246bd8b4e62b095b5923a0ff

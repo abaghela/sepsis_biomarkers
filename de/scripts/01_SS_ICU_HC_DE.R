@@ -41,7 +41,11 @@ deconv_res_df %>%
 ggsave("./de/figures/ss_icu_hc_cell_prop.png", width = 14, height = 3, scale = 0.9)
 
 ### Perform DE/Pathway Enrichment
+<<<<<<< HEAD
 SS_ICU_HC_DE <- function(comparison = c("healthy_control", "suspected_sepsis"),  incl_cell_props = FALSE ) {
+=======
+SS_ICU_HC_DE <- function(comparison = c("healthy_control", "suspected_sepsis"), des, incl_cell_props = FALSE ) {
+>>>>>>> 36a7168835f86e6a246bd8b4e62b095b5923a0ff
   
   met <- meta %>% 
     filter(condition %in% comparison) %>% 
@@ -51,12 +55,21 @@ SS_ICU_HC_DE <- function(comparison = c("healthy_control", "suspected_sepsis"), 
     dplyr::select(one_of(met$sample_identifier))
   
   # How many observations are there 
+<<<<<<< HEAD
   no_pats <- met %>% group_by(condition) %>% summarize(n= n(), .groups = "drop")
   cat(paste0("There are ",  no_pats$n[1], " ", no_pats$condition[1], 
              " patients and ", 
              no_pats$n[2], " ", no_pats$condition[2], " patients.\n\n" ))
   
   des = "~condition + age + gender"
+=======
+  no_pats <- met %>% group_by(comparison) %>% summarize(n= n(), .groups = "drop")
+  cat(paste0("There are ",  no_pats$n[1], " ", no_pats$comparison[1], 
+             " patients and ", 
+             no_pats$n[2], " ", no_pats$comparison[2], " patients.\n\n" ))
+  
+  des = "~comparison + sequencing_month_year + age + gender"
+>>>>>>> 36a7168835f86e6a246bd8b4e62b095b5923a0ff
   
   # Include cell proportions  
   if (incl_cell_props) {
@@ -75,10 +88,13 @@ SS_ICU_HC_DE <- function(comparison = c("healthy_control", "suspected_sepsis"), 
   
   }
   
+<<<<<<< HEAD
   if (length(unique(met$sequencing_month_year)) > 1 ) {
     paste0(des, " + sequencing_month_year")
   }
   
+=======
+>>>>>>> 36a7168835f86e6a246bd8b4e62b095b5923a0ff
   # Check if things are in the right order
   right_order <- all(colnames(exp) == met$sample_identifier)
   if (!right_order) {
@@ -115,19 +131,27 @@ res <- list(
   ss_vs_icu = SS_ICU_HC_DE(c("suspected_sepsis", "icu"),  des = "~condition + age + gender", incl_cell_props = T)
 )
 
+<<<<<<< HEAD
 # Get DE Gene Numbers
 res %>% 
   map(~.x$de) %>% 
   map(~map(.x, ~de_gene_numbers(.x)))
 
+=======
+>>>>>>> 36a7168835f86e6a246bd8b4e62b095b5923a0ff
 ### Plot pathways 
 pthwy_htmaps <- function(de_list, pthwy_group ){
   
   # Set up DF
   pthwy_plot <- de_list %>% 
     map(~.x$pthwy) %>% 
+<<<<<<< HEAD
     map(~map(.x, ~bind_rows(.x, .id = "direction" ))) %>% 
     map(~bind_rows(.x, .id ="comparison"  )) %>% 
+=======
+    map(~map(.x, ~bind_rows(.x, .id = "comparison"))) %>% 
+    map(~bind_rows(.x, .id = "direction")) %>% 
+>>>>>>> 36a7168835f86e6a246bd8b4e62b095b5923a0ff
     bind_rows() %>% 
     separate(BgRatio,into = c("M", "N")) %>%
     mutate(Ratio = Count/as.numeric(M) ) %>% 
@@ -140,7 +164,11 @@ pthwy_htmaps <- function(de_list, pthwy_group ){
   plt <- pthwy_plot %>% 
     filter(top_level_pathway_descrip == pthwy_group) %>% 
     mutate(direction = factor(direction, levels = c("up", "down"), labels = c("Up", "Down"))) %>% 
+<<<<<<< HEAD
     #mutate(comparison = factor(comparison, levels =  names(comparison_names), labels =  comparison_names)) %>% 
+=======
+    mutate(comparison = factor(comparison, levels =  names(comparison_names), labels =  comparison_names)) %>% 
+>>>>>>> 36a7168835f86e6a246bd8b4e62b095b5923a0ff
     mutate(one_lower_level_pathway_descrip_clean_name = str_wrap(one_lower_level_pathway_descrip_clean_name, width = 20)) %>% 
     mutate(Description = str_wrap(Description, width = 40)) %>% 
     ggplot(aes(x = direction, y = Description, fill = Ratio)) + 
@@ -163,8 +191,11 @@ for (i in keep) {
     pthwy_htmaps(pthwy_group = i)
 }
 
+<<<<<<< HEAD
 plts$`Immune System`
 plts$Hemostasis
+=======
+>>>>>>> 36a7168835f86e6a246bd8b4e62b095b5923a0ff
 # ggsave("./de/figures/ss_icu_hc_pthwy_enr_Immune_System.png", plts$`Immune System`, width = 9, height = 5.5 )
 # ggsave("./de/figures/ss_icu_hc_pthwy_enr_Programmed_Cell_Death.png", plts$`Programmed Cell Death`, width = 6, height = 2.5)
 # ggsave("./de/figures/ss_icu_hc_pthwy_enr_Metabolism.png", plts$Metabolism, width = 6.5, height = 6)

@@ -24,6 +24,7 @@ sev_outcome_assoc %>%
   pivot_longer(cols = c("survive", "icu_adm"), "outcome") %>% 
   filter(!is.na(sofa_24)) %>% 
   filter(!is.na(value)) %>% 
+<<<<<<< HEAD
   ggplot(aes(x = value, y = sofa_24)) + geom_boxplot() + 
   facet_grid(cols = vars(outcome), scales = "free") + 
   ylab("SOFA") + xlab("")
@@ -33,13 +34,25 @@ ggsave("./misc/figures/SS_SOFA_outcomes.png", scale = 0.9)
 alluv_plt <- meta %>% 
   dplyr::select(one_of("sample_identifier", "culture", "sofa_sev_24", "icu_adm", "survive")) %>% 
   group_by( culture, sofa_sev_24, icu_adm, survive) %>% 
+=======
+  ggplot(aes(x = value, y = sofa_24)) + geom_boxplot() + facet_grid(cols = vars(outcome), scales = "free") 
+
+### Severity - Outcomes Progression 
+alluv_plt <- meta %>% 
+  dplyr::select(one_of("sample_identifier","qsofa_sev_adm", "culture", "sofa_sev_24", "icu_adm", "survive")) %>% 
+  group_by(qsofa_sev_adm, culture, sofa_sev_24, icu_adm, survive) %>% 
+>>>>>>> 36a7168835f86e6a246bd8b4e62b095b5923a0ff
   summarize(Freq = n()) %>% 
   ungroup() %>% 
   na.omit()
 
+<<<<<<< HEAD
 png("./misc/figures/SS_Sev_Outcome_Alluvial.png", width = 700, height = 300, units = "px")
 print(alluvial::alluvial(alluv_plt[,c(1:4)], freq = alluv_plt$Freq))
 dev.off()
+=======
+alluvial::alluvial(alluv_plt[,c(1:5)], freq = alluv_plt$Freq)
+>>>>>>> 36a7168835f86e6a246bd8b4e62b095b5923a0ff
 
 # DE
 meta_de <- meta %>% 

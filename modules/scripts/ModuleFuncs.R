@@ -11,8 +11,12 @@ perform_ica <- function(expr, kurtosis_keep = 10, qval_filt = 0.001, seed = 1) {
   ICA <- fastICA::fastICA(expr, n.comp = comp_no)
   
   # Get the S matrix
+<<<<<<< HEAD
   ICA_S <- ICA$S %>% as.data.frame() %>% 
     set_names(paste0("Mod_",   str_pad(1:ncol(.), width = 3, side = "left", pad = "0")    ))
+=======
+  ICA_S <- ICA$S %>% as.data.frame() %>% set_names(paste0("Mod_",   str_pad(1:ncol(.), width = 3, side = "left", pad = "0")    ))
+>>>>>>> 36a7168835f86e6a246bd8b4e62b095b5923a0ff
   
   # Keep certain components based on kurtosis 
   comp_keep <- ICA_S %>% map_dbl(~e1071::kurtosis(.x)) %>%  keep(~.x >= kurtosis_keep) %>% names()
@@ -60,6 +64,7 @@ plot_pathwy_mods <- function(ica_obj) {
     theme( axis.text.x = element_text(angle = 90),  strip.text.y = element_text(angle = 0, color = "black" )) 
   
   # Perform mSigDB enrichment
+<<<<<<< HEAD
   ICA_mods_filt_msigdb_enr <-  ica_obj$ICA_mods_filt %>%
     map(~pull(.x, hgnc_symbol)) %>%
     map(~go_enrichment(.x,  p_val = 0.01))
@@ -85,6 +90,32 @@ plot_pathwy_mods <- function(ica_obj) {
   
   return(list(reactome = ICA_mods_filt_pathway_enr_df_plot, msigdb = ICA_mods_filt_msigdb_enr_df_plot ))
 
+=======
+  ICA_mods_filt_msigdb_enr <-  ica_obj$ICA_mods_filt %>% 
+    map(~pull(.x, hgnc_symbol)) %>%
+    map(~go_enrichment(.x), p_val = 0.01)
+  
+  ICA_mods_filt_msigdb_enr_df <- ICA_mods_filt_msigdb_enr %>% 
+    map(~keep(.x, names(.) %in% c("MSigDB_Hallmark_2020"))) %>% 
+    map(~bind_rows(.x, .id = "database")) %>% 
+    bind_rows(.id = "comp") %>% 
+    separate(Overlap,into = c("M", "N")) %>%
+    mutate(Ratio = as.numeric(M)/as.numeric(N) ) %>% 
+    group_by(comp) %>% 
+    top_n(1, Ratio) %>% 
+    ungroup() 
+  
+  ICA_mods_filt_msigdb_enr_df_plot <- ICA_mods_filt_msigdb_enr_df %>% 
+    mutate(Term = factor(Term, levels = rev(unique(.$Term)))) %>% 
+    ggplot(aes(x = comp, y = Term, fill = Ratio )) + 
+    geom_tile() + 
+    scale_fill_viridis(option = "magma", direction = -1) +
+    scale_x_discrete(drop=FALSE) +
+    theme_minimal() + ylab("") + xlab("") +
+    theme( axis.text.x = element_text(angle = 90),  strip.text.y = element_text(angle = 0, color = "black" )) 
+  
+  return(list(reactome = ICA_mods_filt_pathway_enr_df_plot, msigdb = ICA_mods_filt_msigdb_enr_df_plot ))
+>>>>>>> 36a7168835f86e6a246bd8b4e62b095b5923a0ff
 }
 
 get_mod_eigenvect <- function(ICA_mods, expr_mat) {
@@ -97,6 +128,7 @@ get_mod_eigenvect <- function(ICA_mods, expr_mat) {
   
   return(eig)
   
+<<<<<<< HEAD
 }
 
 #### Associate modules to clinical vars_of_int
@@ -226,3 +258,6 @@ get_mod_sigs <- function(ICA_eig_clin, ICA_mods, vars_of_int, top_n_mods = 5,  s
   mod_sig_top %<>% dplyr::select(one_of("variable","comp", "sig_name", "sig_name_no_clin", "mod_genes"))
   return(mod_sig_top)
 }
+=======
+}
+>>>>>>> 36a7168835f86e6a246bd8b4e62b095b5923a0ff

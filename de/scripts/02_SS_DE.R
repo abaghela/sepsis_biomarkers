@@ -38,29 +38,46 @@ pca$x %>%
         axis.text.x = element_text(color = "black", size = 13), axis.text.y = element_text(color = "black", size = 13))
 
 ### DE
+<<<<<<< HEAD
 SS_DE <- function(expr, meta, outcome, nuisance_vars = c("sequencing_month_year", "age", "gender"), incl_cell_props = FALSE) {
+=======
+SS_DE <- function(expr, meta, outcome, incl_cell_props = FALSE) {
+>>>>>>> 36a7168835f86e6a246bd8b4e62b095b5923a0ff
   
   # Print the outcome
   cat(paste0("Outcome: ", outcome, "\n"))
   
   # Set up meta and expression data
   met <- meta %>% 
+<<<<<<< HEAD
     dplyr::select(one_of("sample_identifier",outcome, nuisance_vars)) %>% 
     dplyr::rename(comparison = all_of(outcome)) %>% 
     na.omit()
+=======
+    dplyr::rename(comparison = all_of(outcome)) %>% 
+    filter(!is.na(comparison))
+>>>>>>> 36a7168835f86e6a246bd8b4e62b095b5923a0ff
   
   exp <- expr %>% 
     dplyr::select(one_of("ensembl_gene_id", met$sample_identifier)) %>% 
     column_to_rownames(var = "ensembl_gene_id")
   
+<<<<<<< HEAD
   des = paste0("~comparison + ", paste(nuisance_vars, collapse = " + "))
   
+=======
+>>>>>>> 36a7168835f86e6a246bd8b4e62b095b5923a0ff
   # How many observations are there 
   no_pats <- met %>% group_by(comparison) %>% summarize(n= n(), .groups = "drop")
   cat(paste0("There are ",  no_pats$n[1], " ", no_pats$comparison[1], 
              " patients and ", 
              no_pats$n[2], " ", no_pats$comparison[2], " patients.\n\n" ))
   
+<<<<<<< HEAD
+=======
+  des = "~comparison + sequencing_month_year + age + gender"
+  
+>>>>>>> 36a7168835f86e6a246bd8b4e62b095b5923a0ff
   # Include cell proportions  
   if (incl_cell_props) {
     deconv_pca <- deconv_res$er_tr$cibersort %>% 
@@ -80,8 +97,11 @@ SS_DE <- function(expr, meta, outcome, nuisance_vars = c("sequencing_month_year"
     
   }
   
+<<<<<<< HEAD
   cat("\nDesign formula: ", des, "\n")
   
+=======
+>>>>>>> 36a7168835f86e6a246bd8b4e62b095b5923a0ff
   # Check if samples are in the right order
   right_order <-  all(colnames(exp) == met$sample_identifier)
   
@@ -115,8 +135,12 @@ SS_DE <- function(expr, meta, outcome, nuisance_vars = c("sequencing_month_year"
   return(res)
   }
 
+<<<<<<< HEAD
 outcomes <- c("endotype2class", "survive","icu_adm", "culture", "qsofa_High_Low", "High_Low", "HighInt_Low")
 
+=======
+outcomes <- c("endotype2class", "survive","icu_adm", "culture", "qsofa_High_Low", "High_Low")
+>>>>>>> 36a7168835f86e6a246bd8b4e62b095b5923a0ff
 res <- outcomes %>% 
   map(~SS_DE(expr, meta, outcome = .x, incl_cell_props = TRUE)) %>% 
   set_names(outcomes)
