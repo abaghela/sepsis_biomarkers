@@ -15,3 +15,11 @@ train_test_mods/results/*
 # Rantom R Stuff
 .Rhistory
 .Rproj.user/*
+.Rproj.user
+
+# Lets take off most stuff
+create_tr_te/
+DE/
+misc/
+MODULES/
+TrainTestModels/

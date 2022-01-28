@@ -1,4 +1,4 @@
-source("./helper_functions.R")
+source("./misc/helper_functions.R")
 library(immunedeconv)
 
 # Read in data 

@@ -10,7 +10,8 @@ library(ggrepel)
 library(UpSetR)
 library(enrichR)
 library(ReactomePA)
-
+library(caret)
+library(doParallel)
 
 pathway_hier <- read_csv("/mnt/analysis1/ImportantFiles/Human/enr_pathway_highest_level_clean_names.csv")
 pathway_enrichment <- function(gene_list, universe_list, p_val = 0.05, ID = "entrez") {
@@ -155,7 +156,7 @@ de <- function(counts, meta,  PADJ= 0.05, FC= 1.5, des, main_covar, versus_hc = 
   
   # Set up dds
   cat("Creating dds object...\n")
-  dds <- DESeq2::DESeqDataSetFromMatrix(countData = counts, colData = meta, design = as.formula(paste0("~", des)))
+  dds <- DESeq2::DESeqDataSetFromMatrix(countData = counts, colData = meta, design = as.formula(des))
   
   # What is the class of the main covariate? 
   main_covar_class <- class(SummarizedExperiment::colData(dds)[[main_covar]])

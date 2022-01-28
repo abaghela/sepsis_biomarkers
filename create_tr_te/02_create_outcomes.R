@@ -15,24 +15,28 @@ all(colnames(tr_te_dat$er_tr$meta) == colnames(tr_te_dat$icu$meta))
 # ER
 tr_te_dat$er_tr$meta <- tr_te_dat$er_tr$meta %>% 
   dplyr::rename(sofa_24 = "first_at_ed_sofa", sofa_72 = "worst_within_72_sofa", 
-                survive = "outcome_mortality", icu_adm = "outcome_icu_admission",
+                mortality = "outcome_mortality", icu_adm = "outcome_icu_admission",
                 culture = "micro_blood_culture_pathogen")
 tr_te_dat$er_te$meta <- tr_te_dat$er_te$meta %>% 
   dplyr::rename(sofa_24 = "first_at_ed_sofa", sofa_72 = "worst_within_72_sofa", 
-                survive = "outcome_mortality", icu_adm = "outcome_icu_admission",
+                mortality = "outcome_mortality", icu_adm = "outcome_icu_admission",
+                culture = "micro_blood_culture_pathogen")
+tr_te_dat$er_all$meta <- tr_te_dat$er_all$meta %>% 
+  dplyr::rename(sofa_24 = "first_at_ed_sofa", sofa_72 = "worst_within_72_sofa", 
+                mortality = "outcome_mortality", icu_adm = "outcome_icu_admission",
                 culture = "micro_blood_culture_pathogen")
 
 # HC 
 tr_te_dat$hc$meta <- tr_te_dat$hc$meta %>% 
   dplyr::rename(sofa_24 = "first_at_ed_sofa", sofa_72 = "worst_within_72_sofa", 
-                survive = "outcome_mortality", icu_adm = "outcome_icu_admission",
+                mortality = "outcome_mortality", icu_adm = "outcome_icu_admission",
                 culture = "micro_blood_culture_pathogen")
 
 # ICU
 tr_te_dat$icu$meta <- tr_te_dat$icu$meta %>% 
   dplyr::rename(sofa_24 = "outcome_sofa_second", sofa_72 = "outcome_sofa_third", 
-                survive = "outcome_icu_mortality", culture = "micro_blood_culture_pathogen") %>% 
-  dplyr::mutate(icu_adm = ifelse(patient_location == "icu", 1, 0)) 
+                mortality = "outcome_icu_mortality", culture = "micro_blood_culture_pathogen") %>% 
+  dplyr::mutate(icu_adm = c(NA)) 
 
 ## Write function to create new column names 
 
@@ -45,8 +49,8 @@ create_outcomes <- function(meta) {
   # Outcomes: ICU admission, blood culture, survival
   meta %<>% 
     # Survival
-    mutate(survive = ifelse(survive == 1, "dead", "survive")) %>% 
-    mutate(survive = factor(survive, levels = c("survive", "dead"))) %>% 
+    mutate(mortality = ifelse(mortality == 1, "dead", "survive")) %>% 
+    mutate(mortality = factor(mortality, levels = c("survive", "dead"))) %>% 
     # ICU admission
     mutate(icu_adm = ifelse(icu_adm == 1, "icu", "non_icu")) %>% 
     mutate(icu_adm = factor(icu_adm, levels = c("non_icu", "icu"))) %>% 
@@ -125,10 +129,11 @@ create_outcomes <- function(meta) {
 
 tr_te_dat$er_tr$meta <- create_outcomes(tr_te_dat$er_tr$meta)
 tr_te_dat$er_te$meta <- create_outcomes(tr_te_dat$er_te$meta)
+tr_te_dat$er_all$meta <- create_outcomes(tr_te_dat$er_all$meta)
 tr_te_dat$hc$meta <- create_outcomes(tr_te_dat$hc$meta)
 tr_te_dat$icu$meta <- create_outcomes(tr_te_dat$icu$meta)
   
 tr_te_dat %>% write_rds("./create_tr_te/tr_te_dat.RDS")
   
-  # dplyr::select(one_of("sample_identifier", "condition", "survive", "icu_adm", "culture", "sofa_sev_24", "sofa_sev_prog",
+  # dplyr::select(one_of("sample_identifier", "condition", "mortality", "icu_adm", "culture", "sofa_sev_24", "sofa_sev_prog",
   #                      "HighInt_Low", "High_IntLow", "High_Low", "High_Low_BC")) %>% View()

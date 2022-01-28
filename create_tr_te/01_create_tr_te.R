@@ -22,11 +22,11 @@ remove <- "novel transcript|novel protein|Novel transcript|Novel|novel|immunoglo
 universe_filt <- universe %>% filter(!grepl(remove, description)) %>% filter(!is.na(entrezgene_id))
 
 expr %<>% 
-  filter(ensembl_gene_id %in% universe_filt$ensembl_gene_id) %>% 
   column_to_rownames(var = "ensembl_gene_id") %>% 
-  remove_low_count_genes() %>% 
+  remove_low_count_genes() %>%
   sample_lib_size_filter() %>% 
-  rownames_to_column(var = "ensembl_gene_id")
+  rownames_to_column(var = "ensembl_gene_id") %>% 
+  filter(ensembl_gene_id %in% universe_filt$ensembl_gene_id) 
   
 meta %>% 
   filter(sample_identifier %in% colnames(expr)) %>% 
@@ -36,7 +36,7 @@ all(colnames(expr)[-1] == meta$sample_identifier)
 
 #### ER Train 
 er_train_meta <- meta %>% 
-  filter(sample_location %in% c( "colombia", "netherlands", "vancouver", "hancock_lab", "australia_2",  "houston")) %>% 
+  filter(sample_location %in% c( "colombia", "netherlands", "vancouver", "hancock_lab", "australia_2")) %>% 
   #filter(!(condition == "suspected_sepsis" & sample_location == "australia") ) %>% 
   filter(condition %in% "suspected_sepsis")
 er_train_expr <- expr %>% 
@@ -51,6 +51,15 @@ er_test_expr <- expr %>%
   dplyr::select(one_of("ensembl_gene_id", er_test_meta$sample_identifier))
 er_test_meta %>%  group_by(condition, sample_location, sequencing_month_year, time_point) %>% summarize(n = n())
 all(colnames(er_test_expr)[-1] == er_test_meta$sample_identifier)
+
+#### ER Patients
+er_meta <- meta %>% 
+  filter((condition == "suspected_sepsis" & 
+            sample_location %in% c("colombia", "netherlands", "vancouver", "hancock_lab", "australia_2", "australia") ))
+er_expr <- expr %>% 
+  dplyr::select(one_of("ensembl_gene_id", er_meta$sample_identifier))
+er_meta %>%  group_by(condition, sample_location, sequencing_month_year, time_point) %>% summarize(n = n())
+all(colnames(er_expr)[-1] == er_meta$sample_identifier)
 
 #### ICU
 icu_meta_full <- data$meta_icu_covid
@@ -75,11 +84,12 @@ all(colnames(hc_expr)[-1] == hc_meta$sample_identifier )
 tr_te_dat <- list(
   er_tr = list(expr = er_train_expr, meta = er_train_meta),
   er_te = list(expr = er_test_expr, meta = er_test_meta),
+  er_all = list(expr = er_expr, meta = er_meta),
   icu = list(expr = icu_expr, meta = icu_meta),
   hc = list(expr = hc_expr, meta = hc_meta)
   )
 
 tr_te_dat %>% map(~all(colnames(.x$expr)[-1] == .x$meta$sample_identifier))
-rm(er_train_expr, er_train_meta, er_test_expr, er_test_meta, icu_meta_full, icu_meta, icu_expr, hc_meta, hc_expr)
+rm(er_train_expr, er_train_meta, er_test_expr, er_test_meta, er_meta, er_expr, icu_meta_full, icu_meta, icu_expr, hc_meta, hc_expr)
 
 tr_te_dat %>% write_rds("./create_tr_te/tr_te_dat.RDS")
